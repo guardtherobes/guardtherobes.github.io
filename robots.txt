@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://guardtherobes.github.io/sitemap.xml

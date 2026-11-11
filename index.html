@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GuardTheRobes: try on outfits without emptying the wardrobe</title>
+<meta name="description" content="A local-first digital wardrobe. Photograph your clothes, get clean cut-outs, lay outfits out on a board or ask Claude to put one together. Your photos never leave your Mac.">
+<link rel="canonical" href="https://guardtherobes.github.io/">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://guardtherobes.github.io/">
+<meta property="og:title" content="GuardTheRobes">
+<meta property="og:description" content="Try on outfits without emptying the wardrobe. Open source, local-first.">
+<!-- link previews need an absolute image URL; a relative one is ignored by most sites -->
+<meta property="og:image" content="https://guardtherobes.github.io/outfit-builder.png">
+<meta property="og:image:width" content="800">
+<meta property="og:image:height" content="537">
+<meta property="og:image:alt" content="The GuardTheRobes outfit board with a coat, jumper, trousers, boots and a beanie laid out">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#2e5e4e">
+<meta name="color-scheme" content="light">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- only the width range the page uses (100% to 125%): a smaller variable font file, same letters -->
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,400..800&display=swap" rel="stylesheet">
+<!-- v2: built with Anthropic's frontend-design skill. Concept: the cutting mat.
+     GuardTheRobes cuts every garment out of its photo, so the hero is a tailor's cutting mat
+     with cut-outs landing on it. Privacy is told as a care label. -->
+<style>
+  :root {
+    --mat: #2e5e4e;        /* self-healing cutting mat */
+    --mat-deep: #234a3d;
+    --line: rgba(243, 244, 241, .09);
+    --line-major: rgba(243, 244, 241, .2);
+    --paper: #f3f4f1;      /* cool off-white, pattern paper */
+    --ink: #173a30;        /* mat green, darkened: the text colour */
+    --ink-soft: #4b6259;
+    --chalk: #e8d44d;      /* tailor's chalk, the mat's markings */
+    --satin: #fbfbf8;      /* care label */
+    --measure: 64ch;
+  }
+  * { box-sizing: border-box; }
+  @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Archivo", system-ui, sans-serif;
+    font-size: 1.0625rem;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  img { max-width: 100%; display: block; }
+  a { color: inherit; }
+  /* focus ring: ink on the light sections, chalk on the green ones, so it shows on both */
+  :focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; border-radius: 4px; }
+  .mat :focus-visible, .nav :focus-visible, .try :focus-visible, footer :focus-visible { outline-color: var(--chalk); }
+  .skip-link { position: absolute; left: 1rem; top: -4rem; z-index: 10; padding: .6rem 1rem; border-radius: 6px; background: var(--chalk); color: var(--ink); font-weight: 650; text-decoration: none; }
+  .skip-link:focus { top: 1rem; }
+  .wrap { width: min(1180px, 100% - 2.5rem); margin-inline: auto; }
+
+  /* ---------- nav ---------- */
+  .nav {
+    position: absolute; inset: 0 0 auto; z-index: 3;
+    color: var(--paper);
+  }
+  .nav .wrap { display: flex; align-items: center; justify-content: space-between; padding-block: 1.25rem; }
+  .wordmark { font-weight: 800; font-stretch: 125%; font-size: 1.25rem; text-decoration: none; letter-spacing: -.01em; }
+  .nav ul { display: flex; gap: 1.75rem; list-style: none; margin: 0; padding: 0; font-size: .95rem; }
+  .nav a:not(.wordmark) { text-decoration: none; opacity: .85; }
+  .nav a:not(.wordmark):hover { opacity: 1; text-decoration: underline; text-underline-offset: 4px; }
+
+  /* ---------- hero: the cutting mat ---------- */
+  .mat {
+    position: relative;
+    color: var(--paper);
+    background-color: var(--mat);
+    background-image:
+      /* ruler ticks along the top edge */
+      repeating-linear-gradient(90deg, var(--line-major) 0 1px, transparent 1px 24px),
+      /* the mat's 45° guide */
+      linear-gradient(135deg, transparent calc(50% - .5px), rgba(232,212,77,.18) calc(50% - .5px) calc(50% + .5px), transparent calc(50% + .5px)),
+      /* major grid every 5 squares */
+      repeating-linear-gradient(0deg, var(--line-major) 0 1px, transparent 1px 120px),
+      repeating-linear-gradient(90deg, var(--line-major) 0 1px, transparent 1px 120px),
+      /* minor grid */
+      repeating-linear-gradient(0deg, var(--line) 0 1px, transparent 1px 24px),
+      repeating-linear-gradient(90deg, var(--line) 0 1px, transparent 1px 24px);
+    background-size: 100% 10px, 100% 100%, auto, auto, auto, auto;
+    background-repeat: repeat-x, no-repeat, repeat, repeat, repeat, repeat;
+    overflow: hidden;
+  }
+  .mat .wrap {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    gap: 3rem;
+    min-height: min(100svh, 920px);
+    padding-block: 7rem 4rem;
+  }
+  .hero-copy { max-width: 34rem; }
+  h1 {
+    font-stretch: 112%;
+    font-weight: 750;
+    font-size: clamp(2.6rem, 5.4vw, 4.75rem);
+    line-height: .98;
+    letter-spacing: -.02em;
+    margin: 0 0 1.5rem;
+    text-wrap: balance;
+  }
+  .lede { font-size: clamp(1.05rem, 1.4vw, 1.2rem); max-width: 30rem; margin: 0 0 2.25rem; color: rgba(243,244,241,.86); }
+  .actions { display: flex; flex-wrap: wrap; gap: .75rem; }
+  .btn {
+    display: inline-flex; align-items: center; min-height: 48px; padding: 0 1.4rem;
+    border-radius: 999px; font-weight: 650; text-decoration: none; font-size: 1rem;
+    transition: background-color .15s, color .15s;
+  }
+  .btn-primary { background: var(--chalk); color: var(--ink); }
+  .btn-primary:hover { background: #f2e06a; }
+  .btn-quiet { color: var(--paper); box-shadow: inset 0 0 0 1.5px rgba(243,244,241,.5); }
+  .btn-quiet:hover { box-shadow: inset 0 0 0 1.5px var(--paper); }
+
+  /* the flat-lay */
+  .board { position: relative; width: 100%; max-width: 560px; aspect-ratio: 1 / 1.12; justify-self: center; }
+  .piece {
+    position: absolute;
+    filter: drop-shadow(0 10px 10px rgba(0,0,0,.32)) drop-shadow(0 2px 2px rgba(0,0,0,.25));
+    transform: rotate(var(--r, 0deg));
+  }
+  .piece svg { width: 100%; height: auto; display: block; }
+  .coat     { left: 0%;  top: 4%;  width: 46%; --r: -4deg; }
+  .jumper   { left: 27%; top: 9%;  width: 44%; --r: 3deg; }
+  .trousers { left: 37%; top: 40%; width: 24%; --r: -1deg; }
+  .boots    { left: 34%; top: 85%; width: 31%; --r: 2deg; }
+  .beanie   { left: 74%; top: 6%;  width: 22%; --r: 9deg; }
+  .tag {
+    position: absolute; left: 70%; top: 46%; width: 30%;
+    transform: rotate(-6deg);
+    background: var(--satin); color: var(--ink);
+    border-radius: 6px;
+    padding: 1.1rem .9rem .8rem;
+    font-size: .8rem; line-height: 1.3;
+    box-shadow: 0 8px 14px rgba(0,0,0,.28);
+  }
+  .tag::before { /* the eyelet */
+    content: ""; position: absolute; top: .45rem; left: 50%; width: .5rem; height: .5rem;
+    margin-left: -.25rem; border-radius: 50%; background: var(--mat); box-shadow: inset 0 0 0 1.5px #c9cec9;
+  }
+  .tag strong { display: block; font-size: .95rem; font-stretch: 110%; margin-bottom: .15rem; }
+
+  /* one orchestrated moment: the outfit is laid out on load */
+  @media (prefers-reduced-motion: no-preference) {
+    /* will-change puts each cut-out on its own layer, so its drop-shadow is drawn once, not every frame */
+    .piece, .tag { animation: lay .7s cubic-bezier(.2,.7,.2,1) both; will-change: transform, opacity; }
+    .boots    { animation-delay: .15s; }
+    .trousers { animation-delay: .35s; }
+    .coat     { animation-delay: .55s; }
+    .jumper   { animation-delay: .75s; }
+    .beanie   { animation-delay: .95s; }
+    .tag      { animation-delay: 1.35s; --r: -6deg; }
+    @keyframes lay {
+      from { opacity: 0; transform: translate(0, -28px) rotate(calc(var(--r, 0deg) * 3)) scale(1.04); }
+      to   { opacity: 1; transform: rotate(var(--r, 0deg)); }
+    }
+  }
+
+  /* ---------- sections ---------- */
+  section { padding-block: clamp(4.5rem, 9vw, 8rem); }
+  h2 {
+    font-stretch: 108%;
+    font-weight: 720;
+    font-size: clamp(1.9rem, 3.4vw, 2.75rem);
+    line-height: 1.05;
+    letter-spacing: -.015em;
+    margin: 0 0 1.25rem;
+    text-wrap: balance;
+  }
+  h3 { font-size: 1.15rem; font-weight: 680; margin: 0 0 .35rem; font-stretch: 104%; }
+  p { margin: 0 0 1rem; max-width: var(--measure); }
+  .muted { color: var(--ink-soft); }
+
+  .split { display: grid; grid-template-columns: 5fr 7fr; gap: clamp(2rem, 5vw, 5rem); align-items: center; }
+  .split.flip { grid-template-columns: 7fr 5fr; }
+  .split.flip .shot { order: -1; }
+  .shot {
+    border-radius: 10px; overflow: hidden;
+    box-shadow: 0 0 0 1px rgba(23,58,48,.12), 0 24px 48px -24px rgba(23,58,48,.35);
+    max-width: 680px;
+  }
+  .shot-note { font-size: .85rem; color: var(--ink-soft); margin-top: .75rem; }
+
+  .steps { list-style: none; padding: 0; margin: 2rem 0 0; counter-reset: step; }
+  .steps li { counter-increment: step; position: relative; padding-left: 3.25rem; margin-bottom: 1.75rem; }
+  .steps li::before {
+    content: counter(step);
+    position: absolute; left: 0; top: -.1rem;
+    width: 2.1rem; height: 2.1rem; border-radius: 50%;
+    display: grid; place-items: center;
+    background: var(--mat); color: var(--paper);
+    font-weight: 700; font-size: .95rem;
+  }
+  .steps p { margin: 0; color: var(--ink-soft); }
+
+  .claude-list { margin: 1.5rem 0 0; padding: 0; list-style: none; }
+  .claude-list li { padding: .9rem 0; border-top: 1px solid rgba(23,58,48,.15); }
+  .claude-list li:last-child { border-bottom: 1px solid rgba(23,58,48,.15); }
+  .claude-list p { margin: 0; color: var(--ink-soft); }
+
+  /* ---------- privacy: the care label ---------- */
+  .privacy { background: #e6e9e4; }
+  .privacy .split { grid-template-columns: 6fr 5fr; }
+  .label {
+    position: relative;
+    justify-self: center;
+    width: min(100%, 380px);
+    background: var(--satin);
+    padding: 3.25rem 2rem 2.25rem;
+    border-radius: 3px;
+    box-shadow: 0 1px 0 rgba(0,0,0,.04), 0 20px 40px -20px rgba(23,58,48,.4);
+    transform: rotate(1.5deg);
+  }
+  .label::before { /* folded top where it's sewn into the seam */
+    content: ""; position: absolute; inset: 0 0 auto; height: 1.5rem;
+    background: linear-gradient(#dfe3dd, #eef0eb);
+    border-radius: 3px 3px 0 0;
+  }
+  .label::after { /* stitching */
+    content: ""; position: absolute; inset: .55rem;
+    border: 1.5px dashed rgba(23,58,48,.28); border-radius: 2px; pointer-events: none;
+  }
+  .label h3 { text-align: center; font-stretch: 125%; font-weight: 800; font-size: 1.05rem; margin-bottom: 1.25rem; }
+  .label dl { margin: 0; }
+  .label dt { font-weight: 680; font-size: .95rem; }
+  .label dd { margin: 0 0 1rem; font-size: .9rem; color: var(--ink-soft); line-height: 1.45; }
+  .label dd:last-child { margin-bottom: 0; }
+
+  /* ---------- try it ---------- */
+  .try { background: var(--mat-deep); color: var(--paper); }
+  .try .muted { color: rgba(243,244,241,.72); }
+  .try .split { align-items: start; }
+  pre {
+    margin: 0; padding: 1.5rem 1.75rem; border-radius: 10px;
+    background: rgba(0,0,0,.28); color: var(--paper);
+    font: 500 .95rem/1.8 ui-monospace, "SF Mono", Menlo, monospace;
+    overflow-x: auto;
+  }
+  pre .c { color: rgba(243,244,241,.55); }
+  .try .btn-primary { margin-top: 1.5rem; }
+
+  footer { background: var(--mat-deep); color: rgba(243,244,241,.7); font-size: .9rem; border-top: 1px solid rgba(243,244,241,.12); }
+  footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 1rem; padding-block: 1.75rem; }
+
+  /* ---------- small screens ---------- */
+  @media (max-width: 900px) {
+    .mat .wrap, .split, .split.flip, .privacy .split { grid-template-columns: 1fr; }
+    .split.flip .shot { order: 0; }
+    .mat .wrap { padding-block: 6.5rem 3.5rem; min-height: auto; gap: 2.5rem; }
+    .board { max-width: 440px; }
+    .nav ul { gap: 1.1rem; }
+  }
+  @media (max-width: 480px) {
+    .nav li:first-child { display: none; }
+    .btn { width: 100%; justify-content: center; }
+    .tag { font-size: .72rem; padding: 1rem .6rem .6rem; }
+  }
+</style>
+</head>
+<body>
+
+<a class="skip-link" href="#how">Skip to content</a>
+<header class="nav">
+  <div class="wrap">
+    <a class="wordmark" href="#top">GuardTheRobes</a>
+    <nav aria-label="Main">
+      <ul>
+        <li><a href="#privacy">Privacy</a></li>
+        <li><a href="https://github.com/Liam-Alexander-Cheung/wardrobe">GitHub</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+  <div class="mat">
+    <div class="wrap">
+      <div class="hero-copy">
+        <h1>Try on outfits without emptying the wardrobe.</h1>
+        <p class="lede">Photograph your clothes and GuardTheRobes cuts each piece out of its background.
+          Lay outfits out on a board, or ask Claude to put one together. The photos stay on your Mac.</p>
+        <div class="actions">
+          <a class="btn btn-primary" href="#try">Try the demo</a>
+          <a class="btn btn-quiet" href="https://github.com/Liam-Alexander-Cheung/wardrobe">Read the code</a>
+        </div>
+      </div>
+
+      <div class="board" role="img" aria-label="An outfit laid out on a cutting mat: camel coat, navy jumper, black trousers, brown boots and a grey beanie, with a tag reading Cold school day, put together by Claude.">
+        <div class="piece boots" aria-hidden="true">
+          <svg viewBox="0 0 170 92"><path fill="#6b4228" d="M8 4h38v52l32 6v26H8z"/><path fill="#6b4228" d="M92 4h38v52l32 6v26H92z"/><path fill="#4e2f1c" d="M8 80h70v8H8zM92 80h70v8H92z"/></svg>
+        </div>
+        <div class="piece trousers" aria-hidden="true">
+          <svg viewBox="0 0 120 250"><path fill="#24282d" d="M14 12h92l8 234H68L60 84l-8 162H6z"/><path fill="#16191c" d="M14 4h92v14H14z"/></svg>
+        </div>
+        <div class="piece coat" aria-hidden="true">
+          <svg viewBox="0 0 220 240"><path fill="#b98a55" d="M76 10h68l66 54-17 66-17-10v114H44V120l-17 10-17-66z"/><path fill="#9c7040" d="M76 10l34 72-18-72zM144 10l-34 72 18-72z"/><circle cx="110" cy="112" r="3.5" fill="#6e4c2a"/><circle cx="110" cy="146" r="3.5" fill="#6e4c2a"/><circle cx="110" cy="180" r="3.5" fill="#6e4c2a"/></svg>
+        </div>
+        <div class="piece jumper" aria-hidden="true">
+          <svg viewBox="0 0 210 210"><path fill="#26365e" d="M68 16q37 22 74 0l58 32-12 112-21-5-4 39H47l-4-39-21 5L10 48z"/><path fill="none" stroke="#1b2747" stroke-width="7" d="M70 18q35 20 70 0"/><path fill="#1b2747" d="M47 186h116v8H47z"/></svg>
+        </div>
+        <div class="piece beanie" aria-hidden="true">
+          <svg viewBox="0 0 120 112"><circle cx="60" cy="18" r="14" fill="#8a8f95"/><path fill="#7d8288" d="M14 86q0-56 46-56t46 56z"/><rect x="8" y="78" width="104" height="28" rx="4" fill="#666b71"/></svg>
+        </div>
+        <div class="tag" aria-hidden="true">
+          <strong>Cold school day</strong>
+          Put together by Claude from 12 pieces
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <section id="how">
+    <div class="wrap split">
+      <div>
+        <h2>From a photo to a piece you can wear on screen</h2>
+        <ol class="steps">
+          <li>
+            <h3>Photograph it</h3>
+            <p>Shoot the garment on the floor or a bed, AirDrop it to your Mac and drop it into the closet.</p>
+          </li>
+          <li>
+            <h3>GuardTheRobes cuts it out</h3>
+            <p>The background is removed on your Mac, the colours are corrected, and the location data is wiped before anything is saved.</p>
+          </li>
+          <li>
+            <h3>Put outfits together</h3>
+            <p>Filter by category or colour, then drag pieces onto the board and save the outfit with a name and an occasion.</p>
+          </li>
+        </ol>
+      </div>
+      <div>
+        <div class="shot"><img src="closet.png" width="800" height="538" loading="lazy" decoding="async" alt="The closet view: twelve garments in a grid with category filters and an Add photos button."></div>
+        <p class="shot-note">Demo mode, with garments drawn in code.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="claude">
+    <div class="wrap split flip">
+      <div>
+        <h2>Ask Claude what to wear</h2>
+        <p class="muted">Tell it the weather or the occasion. Claude reads your closet, looks at a short list of pieces and saves the outfit to your board, marked as its suggestion.</p>
+        <ul class="claude-list">
+          <li><h3>In the app</h3><p>The Ask Claude button runs Claude Code with every built-in tool switched off: no shell, no files, no web. It only gets your wardrobe.</p></li>
+          <li><h3>From any Claude Code session</h3><p>The same wardrobe tools are registered for the project folder, so you can ask from the terminal too.</p></li>
+          <li><h3>Cheap on purpose</h3><p>Photos cost the most tokens, so Claude filters by tags first and only looks at up to six thumbnails.</p></li>
+        </ul>
+      </div>
+      <div>
+        <div class="shot"><img src="outfit-builder.png" width="800" height="537" loading="lazy" decoding="async" alt="The outfit board: a camel coat, navy jumper, black trousers, brown boots and grey beanie laid out, with saved outfits on the right."></div>
+        <p class="shot-note">Demo mode, with garments drawn in code.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="privacy" class="privacy">
+    <div class="wrap split">
+      <div>
+        <h2>The code is public. Your clothes aren't.</h2>
+        <p class="muted">Photos and the database live in a folder outside the project, so they never reach git, GitHub or a server. Each rule on the label is enforced in code and covered by a test.</p>
+        <p class="muted">There is one exception, and it's yours to make: when you ask Claude to look at a piece, that thumbnail is sent to Anthropic as part of the conversation.</p>
+      </div>
+      <div class="label">
+        <h3>GuardTheRobes</h3>
+        <dl>
+          <dt>Stays on this Mac</dt>
+          <dd>The server only listens on 127.0.0.1 and turns away requests from other websites.</dd>
+          <dt>Location removed</dt>
+          <dd>EXIF and GPS data are stripped before a photo is stored.</dd>
+          <dt>Kept out of git</dt>
+          <dd>The app refuses to start if the data folder is inside the repository.</dd>
+          <dt>Claude can add, never delete</dt>
+          <dd>Its tools tag pieces and save outfits. There is no delete tool.</dd>
+        </dl>
+      </div>
+    </div>
+  </section>
+
+  <section id="try" class="try">
+    <div class="wrap split">
+      <div>
+        <h2>Try it on your Mac</h2>
+        <p class="muted">You need Python 3.11, Node 20 and macOS or Linux. Demo mode fills the closet with twelve drawn garments in a temporary folder, so nothing is kept.</p>
+        <p class="muted">The Claude features need Claude Code installed and signed in.</p>
+        <a class="btn btn-primary" href="https://github.com/Liam-Alexander-Cheung/wardrobe">Get the code</a>
+      </div>
+      <pre tabindex="0" aria-label="Commands to set up and run GuardTheRobes"><code><span class="c"># one-time setup</span>
+make setup
+
+<span class="c"># twelve drawn garments, nothing saved</span>
+make demo
+
+<span class="c"># your own wardrobe, in ~/WardrobeData</span>
+make run</code></pre>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>GuardTheRobes is open source under the MIT licence.</span>
+    <a href="https://github.com/Liam-Alexander-Cheung/wardrobe">Source on GitHub</a>
+  </div>
+</footer>
+
+</body>
+</html>
