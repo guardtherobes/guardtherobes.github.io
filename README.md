@@ -3,7 +3,7 @@
 The landing page for **GuardTheRobes**, a local-first digital wardrobe.
 Live at <https://guardtherobes.github.io/>.
 
-The app itself lives in [Liam-Alexander-Cheung/wardrobe](https://github.com/Liam-Alexander-Cheung/wardrobe).
+The app itself lives in [guardtherobes/guardtherobes](https://github.com/guardtherobes/guardtherobes).
 
 ## What's here
 
